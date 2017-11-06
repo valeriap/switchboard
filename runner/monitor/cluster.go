@@ -11,10 +11,7 @@ import (
 
 	"math"
 
-	"encoding/json"
-
 	"code.cloudfoundry.org/lager"
-	"github.com/cloudfoundry-incubator/galera-healthcheck/api"
 	"github.com/cloudfoundry-incubator/switchboard/domain"
 )
 
@@ -155,33 +152,13 @@ func ChooseActiveBackend(backendHealths map[*domain.Backend]*BackendStatus) *dom
 }
 
 func (c *Cluster) determineStateFromBackend(backend *domain.Backend, client UrlGetter, shouldLog bool) (bool, *int) {
-	j := backend.AsJSON()
-
-	url := fmt.Sprintf("http://%s:%d/api/v1/status", j.Host, j.StatusPort)
-	resp, err := client.Get(url)
-
-	/////////////////
-	// Determine health from either the v1 status endpoint
-	// or fallback to the v0 status endpoint
 	var healthy bool
 	var index *int
 
-	if err == nil {
-		if resp.StatusCode == http.StatusOK {
-			var v1StatusResponse api.V1StatusResponse
+	url := backend.HealthcheckUrl()
+	resp, err := client.Get(url)
 
-			_ = json.NewDecoder(resp.Body).Decode(&v1StatusResponse)
-
-			healthy = v1StatusResponse.Healthy
-			indexVal := int(v1StatusResponse.WsrepLocalIndex)
-			index = &indexVal
-		} else if resp.StatusCode == http.StatusNotFound {
-			url = backend.HealthcheckUrl()
-			resp, err = client.Get(url)
-
-			healthy = (err == nil && resp.StatusCode == http.StatusOK)
-		}
-	}
+	healthy = (err == nil && resp.StatusCode == http.StatusOK)
 
 	if shouldLog {
 		if !healthy && err == nil {
